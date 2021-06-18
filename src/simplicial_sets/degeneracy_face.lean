@@ -360,28 +360,4 @@ begin
     exact (σ_comp_δ_comp f i hi).symm, }
 end
 
-theorem eq_of_same_sections : Π {n m} (s₁ s₂ : [n] ⟶ [m]) [degeneracy s₁] [degeneracy s₂],
-(∀ (f : [m] ⟶ [n]), f ≫ s₁ = 𝟙 [m] ↔ f ≫ s₂ = 𝟙 [m]) → s₁ = s₂
-| n m s₁ s₂ degeneracy.id               degeneracy.id               := λ hf, rfl
-| n m s₁ s₂ (degeneracy.comp g₁ i₁ hg₁) degeneracy.id               :=
-  by { intro hf, simpa using (hf (hom.mk preorder_hom.id)),}
-| n m s₁ s₂ degeneracy.id               (degeneracy.comp g₂ i₂ hg₂) :=
-  by {intro hf, symmetry, simpa using (hf (hom.mk preorder_hom.id)), }
-| n m s₁ s₂ (degeneracy.comp g₁ i₁ hg₁) (degeneracy.comp g₂ i₂ hg₂) :=
-begin
-  intro hf,
-  -- by_cases hi : i₁ = i₂,
-  ext1, ext1 i,
-  simp [σ, fin.pred_above],
-  split_ifs,
-  { apply congr_fun, apply congr_arg, apply congr_arg,
-    sorry },
-  {
-    sorry },
-  {
-    sorry },
-  { apply congr_fun, apply congr_arg, apply congr_arg,
-    sorry }
-end
-
 end simplex_category
