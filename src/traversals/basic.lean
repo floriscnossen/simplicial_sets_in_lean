@@ -1,10 +1,9 @@
 import algebraic_topology.simplicial_set
-import tactic.norm_fin
-import contravariant_functor
 import category_theory.limits.has_limits
 import category_theory.functor_category
 import category_theory.limits.yoneda
 import category_theory.limits.presheaf
+import simplicial_sets.simplex_as_hom
 
 open category_theory
 open category_theory.limits
@@ -15,8 +14,6 @@ open_locale simplicial
 /-!
 # Traversals
 Defines n-traversals, pointed n-traversals and their corresponding simplicial sets.
--- Defines n-edges as typles of a value in fin n+1 and a value plus or minus.
--- An n-traveral is a list of n-edges.
 
 ## Notations
 * `∔` for a plus,
@@ -26,73 +23,9 @@ Defines n-traversals, pointed n-traversals and their corresponding simplicial se
 * `θ ⬝ α` for the action of a map α on a traversal θ.
 -/
 
--- Maybe put these somewhere else
-
-namespace simplex_category
-
-@[simps] def last (n : simplex_category) := fin.last n.len
-
-end simplex_category
-
-/-- Interpret a simplex as a morphism from a standard simplicial set. -/
-def simplex_as_hom {n : ℕ} {X : sSet} (x : X.obj (opposite.op [n])) :
-  Δ[n] ⟶ X :=
-{ app := λ m f,
-  begin
-    change m.unop ⟶ [n] at f,
-    exact X.map f.op x,
-  end,
-  naturality' := λ k m f,
-  begin
-    ext1 g, change k.unop ⟶ [n] at g, simp,
-    rw [←types_comp_apply (X.map g.op) (X.map f), ←X.map_comp],
-    refl,
-  end
-}
-
-lemma simplex_as_hom_id {n : ℕ} {X : sSet} (x : X.obj (opposite.op [n])) :
-  (simplex_as_hom x).app (opposite.op [n]) (𝟙 [n]) = x :=
-begin
-  change X.map (𝟙 [n]).op x = x,
-  rw [op_id, X.map_id],
-  refl,
-end
-
-lemma simplex_as_hom_eq_iff {n : ℕ} {X : sSet} (x y : X.obj (opposite.op [n])) :
-  simplex_as_hom x = simplex_as_hom y ↔ x = y :=
-begin
-  split,
-  { intro h, rwa [←simplex_as_hom_id x, ←simplex_as_hom_id y, h] },
-  { intro h, rwa h }
-end
-
-/-- Interpret a morphism in the simplex category as a morphism between standard simplicial sets. -/
-def to_sSet_hom {n m} (f : [n] ⟶ [m]) : Δ[n] ⟶ Δ[m] := sSet.standard_simplex.map f
-
-@[simp]
-lemma to_sSet_hom_id {n} : to_sSet_hom (𝟙 [n]) = 𝟙 Δ[n] := yoneda.map_id [n]
-
-lemma hom_comp_simplex_as_hom {n m} (f : [n] ⟶ [m]) {X : sSet} (x : X.obj (opposite.op [m])) :
-  to_sSet_hom f ≫ simplex_as_hom x = simplex_as_hom (X.map f.op x) :=
-begin
-  ext k g, change k.unop ⟶ [n] at g,
-  simp [to_sSet_hom, simplex_as_hom],
-  rw [←types_comp_apply (X.map f.op) (X.map g.op) x, ←X.map_comp],
-  refl,
-end
-
-lemma simplex_as_hom_comp_hom {n} {X Y : sSet} (x : X.obj (opposite.op [n])) (f : X ⟶ Y) :
-  simplex_as_hom x ≫ f = simplex_as_hom (f.app (opposite.op [n]) x) :=
-begin
-  ext k g, change k.unop ⟶ [n] at g,
-  simp [to_sSet_hom, simplex_as_hom],
-  rw [←types_comp_apply (X.map g.op) (f.app k) x, ←types_comp_apply (f.app _) (Y.map g.op) x],
-  apply congr_fun,
-  apply f.naturality,
-end
-
 namespace traversal
 
+@[derive decidable_eq]
 inductive pm
 | plus  : pm
 | minus : pm
@@ -139,6 +72,10 @@ namespace traversal
 notation h :: t  := list.cons h t
 notation `⟦` l:(foldr `, ` (h t, list.cons h t) list.nil `⟧`) := (l : traversal _)
 
+instance decidable_mem {n} :
+  Π (e : edge n) (θ : traversal n), decidable (e ∈ θ) := list.decidable_mem
+
+
 @[reducible]
 def sorted {n} (θ : traversal n) := list.sorted edge.lt θ
 
@@ -184,6 +121,24 @@ begin
   { apply append_sorted t₁ θ₂ ht₁ s₂,
     intros e₁' he₁' e₂' he₂',
     refine H e₁' (list.mem_cons_of_mem e₁ he₁') e₂' he₂' }
+end
+
+theorem append_sorted_iff {n : ℕ} : Π (θ₁ θ₂ : traversal n),
+  sorted θ₁ ∧ sorted θ₂ ∧ (∀ (e₁ ∈ θ₁) (e₂ ∈ θ₂), e₁ < e₂) ↔ sorted (θ₁ ++ θ₂)
+| ⟦⟧         θ₂ := by simp[sorted, list.sorted_nil]
+| (e₁ :: t₁) θ₂ :=
+begin
+  split, rintro ⟨s₁, s₂, H⟩, apply append_sorted _ _ s₁ s₂ H,
+  intro H, dsimp[sorted] at H, rw list.sorted_cons at H,
+  change _ ∧ sorted _ at H, rw ←append_sorted_iff at H,
+  split,
+  { dsimp[sorted], rw list.sorted_cons, split,
+    intros b hb, exact H.1 b (list.mem_append_left θ₂ hb),
+    exact H.2.1 },
+  split, exact H.2.2.1,
+  intros e' he', simp at he', cases he', cases he',
+  intros e₂ he₂, exact H.1 e₂ (list.mem_append_right t₁ he₂),
+  exact H.2.2.2 e' he',
 end
 
 /-! # Applying a map to an edge -/
@@ -410,6 +365,137 @@ begin
   { intro e, simp, }
 end
 
+/-! # The application of the standard face maps and standard degeneracies. -/
+
+@[simp] lemma apply_δ_self {n} (i : fin (n + 2)) (b : ±) :
+  apply_map_to_edge (δ i) (i, b) = ⟦⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  apply apply_map_to_edge_sorted,
+  exact list.sorted_nil,
+  intro e, cases e, simp,
+  intro h, exfalso,
+  simp [δ, fin.succ_above] at h,
+  split_ifs at h,
+  finish,
+  rw [not_lt, fin.le_cast_succ_iff] at h_1, finish,
+end
+
+@[simp] lemma apply_δ_succ_cast_succ {n} (i : fin (n + 1)) (b : ±) :
+  apply_map_to_edge (δ i.succ) (i.cast_succ, b) = ⟦(i, b)⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  apply apply_map_to_edge_sorted,
+  exact list.sorted_singleton (i, b),
+  intro e, cases e, simp,
+  intro hb, cases hb,
+  split,
+  { intro he,
+    have H : (δ i.succ ≫ σ i).to_preorder_hom e_fst = (σ i).to_preorder_hom i.cast_succ,
+    { rw ←he, simp, },
+    rw δ_comp_σ_succ at H,
+    simpa [σ, fin.pred_above] using H, },
+  { intro he, cases he,
+    simp [δ, fin.succ_above, fin.cast_succ_lt_succ], }
+end
+
+@[simp] lemma apply_δ_cast_succ_succ {n} (i : fin (n + 1)) (b : ±) :
+  apply_map_to_edge (δ i.cast_succ) (i.succ, b) = ⟦(i, b)⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  apply apply_map_to_edge_sorted,
+  exact list.sorted_singleton (i, b),
+  intro e, cases e, simp,
+  intro hb, cases hb,
+  split,
+  { intro he,
+    have H : (δ i.cast_succ ≫ σ i).to_preorder_hom e_fst = (σ i).to_preorder_hom i.succ,
+    { rw ←he, simp, },
+    rw δ_comp_σ_self at H,
+    simp [σ, fin.pred_above] at H,
+    split_ifs at H, from H,
+    exact absurd (fin.cast_succ_lt_succ i) h, },
+  { intro he, cases he,
+    simp [δ, fin.succ_above, fin.cast_succ_lt_succ], }
+end
+
+@[simp] lemma apply_σ_to_plus {n} (i : fin (n + 1)) :
+  apply_map_to_edge (σ i) (i, ∔) = ⟦(i.succ, ∔), (i.cast_succ, ∔)⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  { apply apply_map_to_edge_sorted,},
+  { simp [sorted], intros a b ha hb, rw ha, rw hb,
+    exact fin.cast_succ_lt_succ i, },
+  { intro e, cases e with l b,
+    rw edge_in_apply_map_to_edge_iff,
+    simp, rw ←or_and_distrib_right, simp, intro hb, clear hb b,
+    simp [σ, fin.pred_above],
+    split,
+    { intro H, split_ifs at H,
+      rw ←fin.succ_inj at H, simp at H,
+      left, exact H,
+      rw ←fin.cast_succ_inj at H, simp at H,
+      right, exact H, },
+    { intro H, cases H; rw H; simp[fin.cast_succ_lt_succ], }}
+end
+
+@[simp] lemma apply_σ_to_min {n} (i : fin (n + 1)) :
+  apply_map_to_edge (σ i) (i, ∸) = ⟦(i.cast_succ, ∸), (i.succ, ∸)⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  { apply apply_map_to_edge_sorted, },
+  { simp[sorted],
+    intros a b ha hb, rw [ha, hb],
+    exact fin.cast_succ_lt_succ i, },
+  { intro e, cases e with l b,
+    rw edge_in_apply_map_to_edge_iff,
+    simp, rw ←or_and_distrib_right, simp, intro hb, clear hb b,
+    simp [σ, fin.pred_above],
+    split,
+    { intro H, split_ifs at H,
+      rw ←fin.succ_inj at H, simp at H,
+      right, exact H,
+      rw ←fin.cast_succ_inj at H, simp at H,
+      left, exact H, },
+    { intro H, cases H; rw H; simp[fin.cast_succ_lt_succ], }}
+end
+
+def edge.s {n} : edge n → fin (n+2)
+| ⟨k, ∔⟩ := k.succ
+| ⟨k, ∸⟩ := k.cast_succ
+
+def edge.t {n} : edge n → fin (n+2)
+| ⟨k, ∔⟩ := k.cast_succ
+| ⟨k, ∸⟩ := k.succ
+
+notation e`ˢ` := e.s
+notation e`ᵗ` := e.t
+
+lemma apply_σ_to_self {n} (e : edge n) :
+  apply_map_to_edge (σ e.1) e = ⟦(eˢ, e.2), (eᵗ, e.2)⟧ :=
+begin
+  apply eq_of_sorted_of_same_elem,
+  { apply apply_map_to_edge_sorted, },
+  { dsimp [sorted],
+    rw [list.sorted_cons],
+    split, swap, apply list.sorted_singleton,
+    intro e', simp, intro he', cases he',
+    cases e with i b, cases b;
+    exact fin.cast_succ_lt_succ i },
+  { intro e', simp,
+    cases e with i b, cases i with i hi,
+    cases e' with i' b', cases i' with i' hi',
+    cases b; cases b';
+    simp [σ, fin.pred_above, edge.s, edge.t];
+    split_ifs;
+    try { rw ←fin.succ_inj, simp [h] };
+    split; intro hi;
+    cases hi;
+    try { linarith };
+    simp }
+end
+
+/- Simplicial set of traversals. -/
 def 𝕋₀ : sSet :=
 { obj       := λ n, traversal n.unop.len,
   map       := λ x y α, apply_map α.unop,
@@ -419,6 +505,7 @@ def 𝕋₀ : sSet :=
 lemma 𝕋₀_map_apply {n m : simplex_categoryᵒᵖ} {f : n ⟶ m} {θ : traversal n.unop.len} :
   𝕋₀.map f θ = θ.apply_map f.unop := rfl
 
+/- Simplicial set of pointed traversals. -/
 def 𝕋₁ : sSet :=
 { obj       := λ x, pointed_traversal x.unop.len,
   map       := λ _ _ α θ, (𝕋₀.map α θ.1, 𝕋₀.map α θ.2),
@@ -436,90 +523,13 @@ def 𝕋₁ : sSet :=
 
 def dom : 𝕋₁ ⟶ 𝕋₀ :=
 { app         := λ n θ, θ.2,
-  naturality' := λ n m α, by simp; refl }
+  naturality' := λ n m α, rfl }
 
 def cod : 𝕋₁ ⟶ 𝕋₀ :=
 { app         := λ n θ, list.append θ.1 θ.2,
   naturality' := λ m m α, funext (λ θ, (traversal.apply_map_append α.unop θ.1 θ.2).symm) }
 
 def as_hom {n} (θ : traversal n) : Δ[n] ⟶ 𝕋₀ := simplex_as_hom θ
-
-/-! # Maps for turning a traversal in a pointed traversal -/
-
--- Help functions and lemmas
-
-def add_point' {n} : Π (θ : traversal n), Π (j : ℕ), pointed_traversal n
-| ⟦⟧       j     := (⟦⟧, ⟦⟧)
-| (h :: t) 0     := (⟦⟧, h :: t)
-| (h :: t) (j+1) := (h :: (add_point' t j).1, (add_point' t j).2)
-
-lemma add_point_comp' {n} : Π (θ : traversal n) (j : ℕ),
-  (θ.add_point' j).1 ++ (θ.add_point' j).2 = θ
-| ⟦⟧       j     := by simp [add_point']
-| (h :: t) 0     := by simp [add_point']
-| (h :: t) (j+1) := by simp [add_point']; apply add_point_comp'
-
-def add_point_remove' {n} : Π (θ : traversal n) (j : ℕ), pointed_traversal n
-| ⟦⟧       j     := (⟦⟧, ⟦⟧)
-| (h :: t) 0     := (⟦⟧, t)
-| (h :: t) (j+1) := (h :: (add_point_remove' t j).1, (add_point_remove' t j).2)
-
-lemma add_point_cast_succ' {n} : Π (θ : traversal n) (j : ℕ) (hj : j < θ.length),
-  θ.add_point' j = ((θ.add_point_remove' j).1, θ.nth_le j hj :: (θ.add_point_remove' j).2)
-| ⟦⟧       j     hj := by simpa using hj
-| (h :: t) 0     hj := by simp [add_point_remove', add_point']
-| (h :: t) (j+1) hj :=
-begin
-  simp [add_point_remove', add_point'] at hj ⊢,
-  have H := add_point_cast_succ' t j hj, rw H,
-  simp, refl,
-end
-
-lemma add_point_succ' {n} : Π (θ : traversal n) (j : ℕ) (hj : j < θ.length),
-  θ.add_point' (j+1) = ((θ.add_point_remove' j).1 ++ ⟦θ.nth_le j hj⟧, (θ.add_point_remove' j).2)
-| ⟦⟧       j     hj := by simpa using hj
-| (h :: t) 0     hj := by induction t; simp [add_point_remove', add_point']
-| (h :: t) (j+1) hj :=
-begin
-  simp [add_point_remove', add_point'] at hj ⊢,
-  have H := add_point_succ' t j hj, rw H,
-  simp, refl,
-end
-
--- Versions using fin
-
-def add_point {n} (θ : traversal n) (j : fin(θ.length + 1)) :
-  pointed_traversal n := add_point' θ j.1
-
-lemma add_point_comp {n} (θ : traversal n) (j : fin(θ.length + 1)) :
-  (θ.add_point j).1 ++ (θ.add_point j).2 = θ := add_point_comp' θ j.1
-
-def add_point_remove {n} (θ : traversal n) (j : fin(θ.length)) :
-  pointed_traversal n := add_point_remove' θ j.1
-
-lemma add_point_cast_succ {n} (θ : traversal n) (j : fin(θ.length)) :
-  θ.add_point j.cast_succ = ((θ.add_point_remove j).1, θ.nth_le j.1 j.2 :: (θ.add_point_remove j).2) :=
-add_point_cast_succ' θ j.1 j.2
-
-lemma add_point_succ {n} (θ : traversal n) (j : fin(θ.length)) :
-  θ.add_point j.succ = ((θ.add_point_remove j).1 ++ ⟦θ.nth_le j.1 j.2⟧, (θ.add_point_remove j).2) :=
-begin
-  unfold add_point_remove add_point, simp,
-  exact add_point_succ' θ j.1 j.2,
-end
-
-lemma add_point_remove_comp {n} (θ : traversal n) (j : fin(θ.length)) :
-  (θ.add_point_remove j).1 ++ θ.nth_le j.1 j.2 :: (θ.add_point_remove j).2 = θ :=
-begin
-  have H := @add_point_comp _ θ j.cast_succ,
-  rw add_point_cast_succ at H,
-  simpa using H,
-end
-
-def shift {n} : pointed_traversal n → pointed_traversal n
-| (θ₁, ⟦⟧)      := (θ₁, ⟦⟧)
-| (θ₁, h :: θ₂) := (θ₁ ++ ⟦h⟧, θ₂)
-
 
 end traversal
 

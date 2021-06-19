@@ -13,17 +13,6 @@ namespace geom_real_rec
 
 variables {n : ℕ}
 
-def s : edge n → fin (n+2)
-| ⟨k, ∔⟩ := k.succ
-| ⟨k, ∸⟩ := k.cast_succ
-
-def t : edge n → fin (n+2)
-| ⟨k, ∔⟩ := k.cast_succ
-| ⟨k, ∸⟩ := k.succ
-
-notation e`ᵗ` := t e
-notation e`ˢ` := s e
-
 def sSet_colimit {sh : Type*} [small_category sh] (diag : sh ⥤ sSet) :
   colimit_cocone (diag) :=
 { cocone := combine_cocones (diag) (λ n,
@@ -36,8 +25,8 @@ def sSet_pushout {X Y Z : sSet} (f : X ⟶ Y) (g : X ⟶ Z) := sSet_colimit (spa
 def bundle : Π (θ : traversal n), Σ (g : sSet), Δ[n] ⟶ g
 | ⟦⟧       := ⟨Δ[n], 𝟙 _⟩
 | (e :: θ) :=
-  let colim := sSet_pushout (to_sSet_hom (δ (eᵗ))) (bundle θ).2 in
-  ⟨colim.cocone.X, to_sSet_hom (δ (s e)) ≫ pushout_cocone.inl colim.cocone⟩
+  let colim := sSet_pushout (to_sSet_hom (δ e.t)) (bundle θ).2 in
+  ⟨colim.cocone.X, to_sSet_hom (δ e.s) ≫ pushout_cocone.inl colim.cocone⟩
 
 end geom_real_rec
 
@@ -49,7 +38,7 @@ variables {n : ℕ}
 def geom_real_incl (θ : traversal n) : Δ[n] ⟶ geom_real_rec θ := (geom_real_rec.bundle θ).2
 
 def bundle_colim (e : edge n) (θ : traversal n) :=
-  sSet_pushout (to_sSet_hom (δ (t e))) (bundle θ).2
+  sSet_pushout (to_sSet_hom (δ e.t)) (bundle θ).2
 
 @[simp]
 lemma geom_real_rec_nil : geom_real_rec (⟦⟧ : traversal n) = Δ[n] := rfl
@@ -61,7 +50,7 @@ lemma geom_real_rec_cons (e : edge n) (θ : traversal n) :
   geom_real_rec (e :: θ) = (bundle_colim e θ).cocone.X := rfl
 
 lemma geom_real_incl_cons (e : edge n) (θ : traversal n) :
-  geom_real_incl (e :: θ) = to_sSet_hom (δ (s e))
+  geom_real_incl (e :: θ) = to_sSet_hom (δ e.s)
     ≫ pushout_cocone.inl (bundle_colim e θ).cocone := rfl
 
 def j_rec_bundle : Π (θ : traversal n),
@@ -88,58 +77,6 @@ def j_rec (θ : traversal n) : geom_real_rec θ ⟶ Δ[n] := (j_rec_bundle θ).1
 
 def j_prop (θ : traversal n) : geom_real_incl θ ≫ j_rec θ = 𝟙 Δ[n] := (j_rec_bundle θ).2
 
-@[simp] lemma apply_δ_self {n} (i : fin (n + 2)) (b : ±) :
-  apply_map_to_edge (δ i) (i, b) = ⟦⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  apply apply_map_to_edge_sorted,
-  exact list.sorted_nil,
-  intro e, cases e, simp,
-  intro h, exfalso,
-  simp [δ, fin.succ_above] at h,
-  split_ifs at h,
-  finish,
-  rw [not_lt, fin.le_cast_succ_iff] at h_1, finish,
-end
-
-@[simp] lemma apply_δ_succ_cast_succ {n} (i : fin (n + 1)) (b : ±) :
-  apply_map_to_edge (δ i.succ) (i.cast_succ, b) = ⟦(i, b)⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  apply apply_map_to_edge_sorted,
-  exact list.sorted_singleton (i, b),
-  intro e, cases e, simp,
-  intro hb, cases hb,
-  split,
-  { intro he,
-    have H : (δ i.succ ≫ σ i).to_preorder_hom e_fst = (σ i).to_preorder_hom i.cast_succ,
-    { rw ←he, simp, },
-    rw δ_comp_σ_succ at H,
-    simpa [σ, fin.pred_above] using H, },
-  { intro he, cases he,
-    simp [δ, fin.succ_above, fin.cast_succ_lt_succ], }
-end
-
-@[simp] lemma apply_δ_cast_succ_succ {n} (i : fin (n + 1)) (b : ±) :
-  apply_map_to_edge (δ i.cast_succ) (i.succ, b) = ⟦(i, b)⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  apply apply_map_to_edge_sorted,
-  exact list.sorted_singleton (i, b),
-  intro e, cases e, simp,
-  intro hb, cases hb,
-  split,
-  { intro he,
-    have H : (δ i.cast_succ ≫ σ i).to_preorder_hom e_fst = (σ i).to_preorder_hom i.succ,
-    { rw ←he, simp, },
-    rw δ_comp_σ_self at H,
-    simp [σ, fin.pred_above] at H,
-    split_ifs at H, from H,
-    exact absurd (fin.cast_succ_lt_succ i) h, },
-  { intro he, cases he,
-    simp [δ, fin.succ_above, fin.cast_succ_lt_succ], }
-end
-
 def k_rec_bundle : Π (θ θ' : traversal n),
   {k : geom_real_rec θ ⟶ 𝕋₁ // geom_real_incl θ ≫ k = simplex_as_hom (θ', θ)}
 | ⟦⟧       θ' := ⟨simplex_as_hom (θ',⟦⟧), rfl⟩
@@ -149,7 +86,7 @@ begin
   refine ⟨(bundle_colim e θ).is_colimit.desc (pushout_cocone.mk _ k_θ.1 _), _⟩,
   { apply simplex_as_hom,
     --Special position
-    exact (apply_map (σ e.1) θ' ++ ⟦(s e, e.2)⟧, (t e, e.2) :: apply_map (σ e.1) θ)},
+    exact (apply_map (σ e.1) θ' ++ ⟦(eˢ, e.2)⟧, (eᵗ, e.2) :: apply_map (σ e.1) θ)},
   change _ = geom_real_incl θ ≫ k_θ.val, rw k_θ.2,
   swap,
   rw [geom_real_incl_cons, category.assoc],
@@ -159,7 +96,7 @@ begin
     rw simplex_as_hom_eq_iff,
     cases e with i b, cases b; simp;
     rw [𝕋₀_map_apply, 𝕋₀_map_apply, has_hom.hom.unop_op];
-    simp[s, t, apply_map];
+    simp[edge.s, edge.t, apply_map];
     rw [←apply_comp, ←apply_comp];
     try { rw δ_comp_σ_self }; try { rw δ_comp_σ_succ };
     rw [apply_id, apply_id];
@@ -175,71 +112,6 @@ def k_rec (θ : traversal n) : geom_real_rec θ ⟶ 𝕋₁ := (k_rec_bundle θ 
 
 def k_prop (θ : traversal n) :
   geom_real_incl θ ≫ k_rec θ = simplex_as_hom (⟦⟧, θ) := (k_rec_bundle θ ⟦⟧).2
-
-@[simp] lemma apply_σ_to_plus (i : fin (n + 1)) :
-  apply_map_to_edge (σ i) (i, ∔) = ⟦(i.succ, ∔), (i.cast_succ, ∔)⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  { apply apply_map_to_edge_sorted,},
-  { simp [sorted], intros a b ha hb, rw ha, rw hb,
-    exact fin.cast_succ_lt_succ i, },
-  { intro e, cases e with l b,
-    rw edge_in_apply_map_to_edge_iff,
-    simp, rw ←or_and_distrib_right, simp, intro hb, clear hb b,
-    simp [σ, fin.pred_above],
-    split,
-    { intro H, split_ifs at H,
-      rw ←fin.succ_inj at H, simp at H,
-      left, exact H,
-      rw ←fin.cast_succ_inj at H, simp at H,
-      right, exact H, },
-    { intro H, cases H; rw H; simp[fin.cast_succ_lt_succ], }}
-end
-
-@[simp] lemma apply_σ_to_min (i : fin (n + 1)) :
-  apply_map_to_edge (σ i) (i, ∸) = ⟦(i.cast_succ, ∸), (i.succ, ∸)⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  { apply apply_map_to_edge_sorted, },
-  { simp[sorted],
-    intros a b ha hb, rw [ha, hb],
-    exact fin.cast_succ_lt_succ i, },
-  { intro e, cases e with l b,
-    rw edge_in_apply_map_to_edge_iff,
-    simp, rw ←or_and_distrib_right, simp, intro hb, clear hb b,
-    simp [σ, fin.pred_above],
-    split,
-    { intro H, split_ifs at H,
-      rw ←fin.succ_inj at H, simp at H,
-      right, exact H,
-      rw ←fin.cast_succ_inj at H, simp at H,
-      left, exact H, },
-    { intro H, cases H; rw H; simp[fin.cast_succ_lt_succ], }}
-end
-
-lemma apply_σ_to_self (e : edge n) :
-  apply_map_to_edge (σ e.1) e = ⟦(s e, e.2), (t e, e.2)⟧ :=
-begin
-  apply eq_of_sorted_of_same_elem,
-  { apply apply_map_to_edge_sorted, },
-  { simp[sorted],
-    intros a b ha hb, rw [ha, hb],
-    cases e with i, cases e_snd;
-    exact fin.cast_succ_lt_succ i, },
-  { sorry,
-    -- intro e', cases e with l b,
-    -- rw edge_in_apply_map_to_edge_iff,
-    -- simp,-- rw ←or_and_distrib_right, simp, intro hb, clear hb b,
-    -- simp [σ, fin.pred_above],
-    -- split,
-    -- { intro H, split_ifs at H,
-    --   rw ←fin.succ_inj at H, simp at H,
-    --   right, ext, exact H.1, exact H.2,
-    --   rw ←fin.cast_succ_inj at H, simp at H,
-    --   left, exact H, },
-    -- { intro H, cases H; rw H; simp[fin.cast_succ_lt_succ], }
-    }
-end
 
 lemma j_comp_θ_eq_k_comp_cod : Π (θ θ' : traversal n),
   j_rec θ ≫ (θ' ++ θ).as_hom = (k_rec_bundle θ θ').1 ≫ cod
@@ -268,179 +140,180 @@ def pullback_cone_rec (θ : traversal n) : pullback_cone (θ.as_hom) cod :=
   pullback_cone.mk (j_rec θ) (k_rec θ) (j_comp_θ_eq_k_comp_cod θ ⟦⟧)
 
 def append_eq_append_split {n} {a b c d : traversal n} :
-  a ++ b = c ++ d → (Σ e, {a' // c = a ++ e :: a' ∧ b = e :: a' ++ d}) ⊕ {c' // a = c ++ c' ∧ d = c' ++ b} :=
+  a ++ b = c ++ d → {a' // c = a ++ a' ∧ b = a' ++ d} ⊕ {c' // a = c ++ c' ∧ d = c' ++ b} :=
 begin
   induction c generalizing a,
   case nil { rw list.nil_append, rintro rfl, right, exact ⟨a, rfl, rfl⟩ },
   case cons : c cs ih {
     intro h, cases a,
-    { left, use c, use cs, simpa using h },
+    { left, use c :: cs, simpa using h },
     { simp at h, cases h, cases h_left, simp,
       exact ih h_right }}
 end
 
-def data_of_split {m} {α : m ⟶ [n]} {e} {e₁ e₂} {θ₁ a'} (H : apply_map_to_edge α e = e₁ :: θ₁ ++ e₂ :: a') :
-  { k : fin m.len //
-    α.to_preorder_hom k.cast_succ = e.1 ∧
-    α.to_preorder_hom k.succ = e.1 ∧
-    (α.to_preorder_hom e₁.1, e₁.2) = e ∧
-    (α.to_preorder_hom e₂.1, e₂.2) = e ∧
-    e₁ < e₂ } :=
+section beta
+
+variables {m : simplex_category} {α : m ⟶ [n]} {e : edge n} {θ₁ θ₂ : traversal m.len} (H : apply_map_to_edge α e = θ₁ ++ θ₂)
+
+def β_conditions (i) (H : apply_map_to_edge α e = θ₁ ++ θ₂) :
+  α.to_preorder_hom i < e.1 ∨ α.to_preorder_hom i > e.1 ∨ (i, e.2) ∈ θ₁ ∨ (i, e.2) ∈ θ₂ :=
 begin
-  have he₁ : (α.to_preorder_hom e₁.1, e₁.2) = e,
-  { rw [←edge_in_apply_map_to_edge_iff, H], simp, },
-  have he₂ : (α.to_preorder_hom e₂.1, e₂.2) = e,
-  { rw [←edge_in_apply_map_to_edge_iff, H], simp, },
-  have he₁₂ : e₁ < e₂,
-  { have h := apply_map_to_edge_sorted α e,
-    rw H at h, dsimp[sorted] at h,
-    rw list.sorted_cons at h,
-    refine h.1 e₂ (list.mem_append_right _ (list.mem_cons_self e₂ a')) },
-  cases e with i b, cases b,
-  { refine ⟨e₂.1.cast_lt _, _, _, he₁, he₂, he₁₂⟩;
-    cases e₁ with i₁; cases e₂ with i₂; simp at he₁ he₂;
-    cases he₁.2; cases he₂.2; simp at he₁ he₂,
-    exact lt_of_lt_of_le he₁₂ (nat.le_of_lt_succ i₁.prop),
-    simpa using he₂, simp,
-    apply le_antisymm,
-    { cases he₁, apply α.to_preorder_hom.monotone,
-      rw [←not_lt, ←fin.le_cast_succ_iff, not_le],
-      exact he₁₂, },
-    { cases he₂, apply α.to_preorder_hom.monotone,
-      exact le_trans (by simp) (le_of_lt (fin.cast_succ_lt_succ _)) } },
-  { refine ⟨e₂.1.pred _, _, _, he₁, he₂, he₁₂⟩;
-    cases e₁ with i₁; cases e₂ with i₂; simp at he₁ he₂;
-    cases he₁.2; cases he₂.2; simp at he₁ he₂,
-    exact ne_of_gt (lt_of_le_of_lt (fin.zero_le i₁) he₁₂),
-    simp, apply le_antisymm,
-    { cases he₂, apply α.to_preorder_hom.monotone,
-      refine le_trans (le_of_lt (fin.cast_succ_lt_succ _)) (by simp) },
-    { cases he₁, apply α.to_preorder_hom.monotone,
-      rw [fin.le_cast_succ_iff, fin.succ_pred],
-      exact he₁₂ },
-    simpa using he₂ }
+  cases lt_trichotomy (α.to_preorder_hom i) e.fst, left, exact h,
+  cases h, swap, right, left, exact h,
+  right, right,
+  replace h : (α.to_preorder_hom (i, e.2).1, (i, e.2).2) = e, rw h, cases e, refl,
+  rw [←edge_in_apply_map_to_edge_iff, H] at h, simp at h, exact h,
 end
 
-lemma of_split {m} {α : m ⟶ [n]} {e} {e₁ e₂} {θ₁ a'} (H : apply_map_to_edge α e = e₁ :: θ₁ ++ e₂ :: a') :
-  (α.to_preorder_hom e₁.1, e₁.2) = e ∧
-  (α.to_preorder_hom e₂.1, e₂.2) = e ∧
-  e₁ < e₂ :=
+def β_fun (H : apply_map_to_edge α e = θ₁ ++ θ₂) : fin (m.len + 1) → fin ([n + 1].len + 1) := λ i,
+  if h₁ : α.to_preorder_hom i < e.1 then (α.to_preorder_hom i).cast_succ
+  else if h₂ : α.to_preorder_hom i > e.1 then (α.to_preorder_hom i).succ
+  else if h₃ : (i, e.2) ∈ θ₁ then eˢ
+  else eᵗ
+
+lemma β_eq_es_iff (i) : β_fun H i = (eˢ) ↔ (i, e.2) ∈ θ₁ :=
 begin
-  split,
-  rw [←edge_in_apply_map_to_edge_iff, H], simp,
-  split,
-  rw [←edge_in_apply_map_to_edge_iff, H], simp,
-  have h := apply_map_to_edge_sorted α e,
-  rw H at h, dsimp[sorted] at h,
-  rw list.sorted_cons at h,
-  refine h.1 e₂ (list.mem_append_right _ (list.mem_cons_self e₂ a'))
+  simp[β_fun],
+  split;
+  intro h',
+  { by_contra, split_ifs at h',
+    rw [←fin.cast_succ_lt_cast_succ_iff, h'] at h_1,
+    cases e with j b, cases b,
+    exact lt_asymm (fin.cast_succ_lt_succ j) h_1,
+    exact lt_irrefl _ h_1,
+    rw [←fin.succ_lt_succ_iff, h'] at h_2,
+    cases e with j b, cases b,
+    exact lt_irrefl _ h_2,
+    exact lt_asymm (fin.cast_succ_lt_succ j) h_2,
+    cases e with j b, cases b,
+    exact ne_of_lt (fin.cast_succ_lt_succ j) h',
+    exact ne_of_gt (fin.cast_succ_lt_succ j) h' },
+  { have hi : (i, e.2) ∈ apply_map_to_edge α e, rw H, exact list.mem_append_left θ₂ h',
+    rw edge_in_apply_map_to_edge_iff at hi,
+    cases e with j b, cases b;
+    simp at hi h'; simp[hi, h'] }
 end
 
-def k_of_split {m} {α : m ⟶ [n]} {e} {e₁ e₂} {θ₁ a'} (H : apply_map_to_edge α e = e₁ :: θ₁ ++ e₂ :: a') :
-  fin m.len  :=
+lemma β_eq_et_iff (i) : β_fun H i = (eᵗ) ↔ (i, e.2) ∈ θ₂ :=
 begin
-  cases e with i b, cases b,
-  { refine e₂.1.cast_lt _,
-    rcases of_split H with ⟨he₁, he₂, he₁₂⟩,
-    cases e₁ with i₁; cases e₂ with i₂; simp at he₁ he₂;
-    cases he₁.2; cases he₂.2; simp at he₁ he₂,
-    exact lt_of_lt_of_le he₁₂ (nat.le_of_lt_succ i₁.prop) },
-  { refine e₂.1.pred _,
-    rcases of_split H with ⟨he₁, he₂, he₁₂⟩,
-    cases e₁ with i₁; cases e₂ with i₂; simp at he₁ he₂;
-    cases he₁.2; cases he₂.2; simp at he₁ he₂,
-    exact ne_of_gt (lt_of_le_of_lt (fin.zero_le i₁) he₁₂) }
+  simp[β_fun],
+  have hf: e.s = e.t ↔ false,
+  { split; intro hf, cases e with j b, cases b,
+    exact ne_of_lt (fin.cast_succ_lt_succ j) hf.symm,
+    exact ne_of_lt (fin.cast_succ_lt_succ j) hf,
+    exfalso, exact hf },
+  split; intro h',
+  { by_contra, split_ifs at h',
+    rw [←fin.cast_succ_lt_cast_succ_iff, h'] at h_1,
+    cases e with j b, cases b,
+    exact lt_irrefl _ h_1,
+    exact lt_asymm (fin.cast_succ_lt_succ j) h_1,
+    rw [←fin.succ_lt_succ_iff, h'] at h_2,
+    cases e with j b, cases b,
+    exact lt_asymm (fin.cast_succ_lt_succ j) h_2,
+    exact lt_irrefl _ h_2,
+    cases e with j b, cases b,
+    exact ne_of_gt (fin.cast_succ_lt_succ j) h',
+    exact ne_of_lt (fin.cast_succ_lt_succ j) h',
+    cases β_conditions i H, exact h_1 h_4,
+    cases h_4, exact h_2 h_4,
+    cases h_4, exact h_3 h_4,
+    exact h h_4 },
+  { have hi : (α.to_preorder_hom (i, e.2).1, (i, e.2).2) = e,
+    { rw [←edge_in_apply_map_to_edge_iff, H], exact list.mem_append_right θ₁ h',  },
+    cases e; simp at hi ⊢ h', simp [hi],
+    have H' : sorted (θ₁ ++ θ₂), rw ←H, apply apply_map_to_edge_sorted,
+    rw ←append_sorted_iff at H',
+    intro hi', exfalso, have h'' := (H'.2.2 _ hi' _ h'),
+    exact edge.lt_asymm _ _ h'' h'', }
 end
 
-lemma α_k_of_split {m} {α : m ⟶ [n]} {e} {e₁ e₂} {θ₁ a'} (H : apply_map_to_edge α e = e₁ :: θ₁ ++ e₂ :: a') :
-  α.to_preorder_hom (k_of_split H).cast_succ = e.1 ∧ α.to_preorder_hom (k_of_split H).succ = e.1 :=
+lemma β_monotone : monotone (β_fun H) := λ i j hij,
 begin
-  rcases of_split H with ⟨he₁, he₂, he₁₂⟩,
-  split; cases e with i b; cases b;
-  simp [k_of_split];
-  cases e₁ with i₁; cases e₂ with i₂; simp at he₁ he₂;
-  cases he₁.2; cases he₂.2; simp at he₁ he₂ ⊢;
-  try { exact he₂ };
-  apply le_antisymm,
-  { cases he₂, apply α.to_preorder_hom.monotone,
-    refine le_trans (le_of_lt (fin.cast_succ_lt_succ _)) (by simp) },
-  { cases he₁, apply α.to_preorder_hom.monotone,
-    rw [fin.le_cast_succ_iff, fin.succ_pred],
-    exact he₁₂ },
-  { cases he₁, apply α.to_preorder_hom.monotone,
-    rw [←not_lt, ←fin.le_cast_succ_iff, not_le],
-    exact he₁₂, },
-  { cases he₂, apply α.to_preorder_hom.monotone,
-    refine le_trans (by simp) (le_of_lt (fin.cast_succ_lt_succ _)) }
+  simp [β_fun], split_ifs; try { apply le_refl },
+  { exact α.to_preorder_hom.monotone hij },
+  { apply le_of_lt, rw ←fin.le_cast_succ_iff, exact α.to_preorder_hom.monotone hij },
+  { rw ←fin.cast_succ_lt_cast_succ_iff at h, cases e with j b, cases b,
+    exact le_trans (le_of_lt h) (le_of_lt (fin.cast_succ_lt_succ _)),
+    exact le_of_lt h },
+  { rw ←fin.cast_succ_lt_cast_succ_iff at h, cases e with j b, cases b,
+    exact le_of_lt h,
+    exact le_trans (le_of_lt h) (le_of_lt (fin.cast_succ_lt_succ _)) },
+  { refine absurd (α.to_preorder_hom.monotone hij) (not_le.mpr _),
+    exact lt_of_lt_of_le h_2 (not_lt.mp h) },
+  { simp, exact α.to_preorder_hom.monotone hij },
+  { refine absurd (α.to_preorder_hom.monotone hij) (not_le.mpr _),
+    exact lt_of_le_of_lt (not_lt.mp h_3) h_1 },
+  { refine absurd (α.to_preorder_hom.monotone hij) (not_le.mpr _),
+    exact lt_of_le_of_lt (not_lt.mp h_3) h_1 },
+  all_goals { have hi := le_antisymm (not_lt.mp h) (not_lt.mp h_1) },
+  { refine absurd (α.to_preorder_hom.monotone hij) (not_le.mpr _),
+    rwa hi at h_3 },
+  { cases e with k b, cases b; simp [edge.s, edge.t],
+    exact le_of_lt h_4,
+    apply le_of_lt, rw[←fin.le_cast_succ_iff], simp, exact le_of_lt h_4 },
+  swap 3, swap 3,
+  { refine absurd (α.to_preorder_hom.monotone hij) (not_le.mpr _),
+    rwa hi at h_3 },
+  { cases e with k b, cases b; simp [edge.s, edge.t],
+    apply le_of_lt, rw[←fin.le_cast_succ_iff], simp, exact le_of_lt h_4,
+    exact le_of_lt h_4 },
+  all_goals
+  { cases e with k b, cases b; dsimp[edge.s, edge.t];
+    try { exact le_of_lt (fin.cast_succ_lt_succ k) },
+    exfalso, have hj := le_antisymm (not_lt.mp h_4) (not_lt.mp h_3),
+    have H' : sorted (θ₁ ++ θ₂), rw ←H, apply apply_map_to_edge_sorted,
+    rw ←append_sorted_iff at H', },
+  { have hj' : (α.to_preorder_hom (j, ∔).1, (j, ∔).2) = (k, ∔), simp, exact hj,
+    rw [←edge_in_apply_map_to_edge_iff, H] at hj',
+    simp [h_5] at hj' h_2,
+    refine absurd hij (not_le.mpr _),
+    exact H'.2.2 _ h_2 _ hj', },
+  { have hi' : (α.to_preorder_hom (i, ∸).1, (i, ∸).2) = (k, ∸), simp, exact hi.symm,
+    rw [←edge_in_apply_map_to_edge_iff, H] at hi',
+    simp [h_2] at hi' h_5,
+    refine absurd hij (not_le.mpr _),
+    exact H'.2.2 _ h_5 _ hi', },
 end
 
-def β {m} (α : m ⟶ [n]) (k : fin m.len) :
--- (hk₁ : α.to_preorder_hom k.cast_succ = i) (hk₂ : α.to_preorder_hom k.succ = i) :
-  m ⟶ [n+1]  := hom.mk
-{ to_fun    := λ j, if j ≤ k.cast_succ then (α.to_preorder_hom j).cast_succ else (α.to_preorder_hom j).succ,
-  monotone' :=
-  begin
-    intros j₁ j₂ hj, simp, split_ifs, simp,
-    exact α.to_preorder_hom.monotone hj,
-    calc
-    (α.to_preorder_hom j₁).cast_succ ≤ (α.to_preorder_hom j₁).succ : le_of_lt (fin.cast_succ_lt_succ _)
-                                  ... ≤ (α.to_preorder_hom j₂).succ : by simp [α.to_preorder_hom.monotone hj],
-    exact absurd (le_trans hj h_1) h,
-    simp [α.to_preorder_hom.monotone hj],
-  end }
+def β (H : apply_map_to_edge α e = θ₁ ++ θ₂) : m ⟶ [n+1] := hom.mk
+{ to_fun    := β_fun H,
+  monotone' := β_monotone H, }
 
-lemma β_comp_σ {m} (α : m ⟶ [n]) {i} {k : fin m.len} (hk₁ : α.to_preorder_hom k.cast_succ = i) (hk₂ : α.to_preorder_hom k.succ = i) :
-  β α k ≫ σ i = α :=
+lemma β_comp_σ : β H ≫ σ e.1 = α :=
 begin
-  ext, simp[σ, fin.pred_above, β], split_ifs; simp [h]; split_ifs;
-  try { refl },
-  exact absurd hk₁ (ne_of_gt (lt_of_lt_of_le h_1 (α.to_preorder_hom.monotone h))),
-  rw [←fin.le_cast_succ_iff, not_le, fin.cast_succ_lt_cast_succ_iff] at h_1,
-  exact absurd hk₁ (ne_of_lt (lt_of_le_of_lt (α.to_preorder_hom.monotone (le_of_not_ge h)) h_1)),
+  ext1, ext1 i, simp [β, β_fun], split_ifs;
+  simp [σ, fin.pred_above]; split_ifs; try { refl };
+  try { push_neg at * },
+  { exfalso, exact lt_asymm h h_1 },
+  { exfalso, rw ←fin.le_cast_succ_iff at h_2, simp at h_2, exact h h_2 },
+  { push_neg at h h_1, rw le_antisymm h_1 h, cases e with j b, cases b;
+    simp[edge.s, edge.t] at h_3 ⊢,
+    exfalso, exact h_3 },
+  { push_neg at h h_1 h_3, rw le_antisymm h_1 h, cases e with j b, cases b;
+    simp[edge.s, edge.t] at h_3 ⊢,
+    exact absurd (fin.cast_succ_lt_succ j) (not_lt.mpr h_3) },
+  { push_neg at h h_1, rw le_antisymm h_1 h, cases e with j b, cases b;
+    simp[edge.s, edge.t] at h_3 ⊢,
+    exfalso, exact h_3 },
+  { push_neg at h h_1 h_3, rw le_antisymm h_1 h, cases e with j b, cases b;
+    simp[edge.s, edge.t] at h_3 ⊢,
+    exact absurd (fin.cast_succ_lt_succ j) (not_lt.mpr h_3) },
 end
 
-lemma βk_neq_βksucc {m} (α : m ⟶ [n]) {i} {k : fin m.len} (hk₁ : α.to_preorder_hom k.cast_succ = i) (hk₂ : α.to_preorder_hom k.succ = i) :
-  (β α k).to_preorder_hom k.cast_succ ≠ (β α k).to_preorder_hom k.succ :=
-begin
-  dsimp[β], rw hom.to_preorder_hom_mk,
-  intro h,
-  rw [preorder_hom.coe_fun_mk, preorder_hom.coe_fun_mk] at h,
-  simp [le_refl, not_le.mpr (fin.cast_succ_lt_succ k)] at h,
-  rw [hk₁, hk₂] at h,
-  refine absurd (fin.cast_succ_lt_succ i) _,
-  rw [h, not_lt],
-end
+end beta
 
 
 def geom_real_rec_lift' : Π (θ θ' : traversal n) {m} (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (geom_real_rec θ).obj (opposite.op m)
-| ⟦⟧       θ' m α θ₁         θ₂ hθ := α
-| (e :: θ) θ' m α ⟦⟧         θ₂ hθ := (geom_real_incl (e :: θ)).app (opposite.op m) α
-| (e :: θ) θ' m α (e₁ :: θ₁) θ₂ hθ :=
+| ⟦⟧       θ' m α θ₁ θ₂ hθ := α
+| (e :: θ) θ' m α θ₁ θ₂ hθ :=
   begin
     cases append_eq_append_split hθ with a' c',
-    { rcases a' with ⟨e₂, a', ha'⟩,
+    { rcases a' with ⟨θ₂', hθ₂', hθ₂⟩,
       let p : pushout_cocone _ _ := (bundle_colim e θ).cocone,
       apply p.inl.app (opposite.op m),
-      exact β α (k_of_split ha'.1),
-      -- have he₂ : (α.to_preorder_hom e₂.1, e₂.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁ : (α.to_preorder_hom e₁.1, e₁.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁₂ : e₁ < e₂,
-      -- { have H := apply_map_to_edge_sorted α e,
-      --   rw ha'.1 at H, dsimp[sorted] at H,
-      --   rw list.sorted_cons at H,
-      --   refine H.1 e₂ (list.mem_append_right _ (list.mem_cons_self e₂ a')) },
-      -- cases e with i b, cases b,
-      -- { refine β α (e₂.1.cast_lt _),
-      --   cases e₁, cases e₂, simp at *,
-      --   cases he₁.2, cases he₂.2,
-      --   exact lt_of_lt_of_le he₁₂ (nat.le_of_lt_succ e₁_fst.prop) },
-      -- { refine β α (e₂.1.pred _),
-      --   cases e₁, cases e₂, simp at *,
-      --   cases he₁.2, cases he₂.2, simp at *,
-      --   exact ne_of_gt (lt_of_le_of_lt (fin.zero_le e₁_fst) he₁₂) }
+      exact β hθ₂',
     },
     { cases c' with c' hc',
       let p : pushout_cocone _ _ := (bundle_colim e θ).cocone,
@@ -450,157 +323,66 @@ def geom_real_rec_lift' : Π (θ θ' : traversal n) {m} (α : m ⟶ [n]) (θ₁ 
 lemma geom_real_rec_fac_j' : Π (θ θ' : traversal n) {m} (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (j_rec θ).app (opposite.op m) (geom_real_rec_lift' θ θ' α θ₁ θ₂ hθ) = α
 | ⟦⟧       θ' m α θ₁ θ₂ hθ := rfl
-| (e :: θ) θ' m α ⟦⟧ θ₂ hθ :=
-  begin
-    change (geom_real_incl (e :: θ) ≫ j_rec (e :: θ)).app (opposite.op m) α = α,
-    rw j_prop, refl,
-  end
-| (e :: θ) θ' m α (e₁ :: θ₁) θ₂ hθ :=
+| (e :: θ) θ' m α θ₁ θ₂ hθ :=
   begin
     simp [geom_real_rec_lift'],
     cases append_eq_append_split hθ with a' c',
-    { rcases a' with ⟨e₂, a', ha'⟩,
+    { rcases a' with ⟨θ₂', H, hθ₂⟩,
       cases e with i b, simp,
-      let H := α_k_of_split ha'.1,
-      change β α _ ≫ σ i = α,
-      apply β_comp_σ,
-      exact H.1,
-      exact H.2, },
-      -- have he₂ : (α.to_preorder_hom e₂.1, e₂.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁ : (α.to_preorder_hom e₁.1, e₁.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁₂ : e₁ < e₂,
-      -- { have H := apply_map_to_edge_sorted α e,
-      --   rw ha'.1 at H, dsimp[sorted] at H,
-      --   rw list.sorted_cons at H,
-      --   refine H.1 e₂ (list.mem_append_right _ (list.mem_cons_self e₂ a')) },
-      -- simp [j_rec, j_rec_bundle],
-      -- cases e with i b, cases b;
-      -- cases e₁; cases e₂; simp at he₁ he₂;
-      -- cases he₁.2; cases he₂.2; simp at he₁ he₂;
-      -- change β α _ ≫ σ i = α;
-      -- apply β_comp_σ;
-      -- try { simpa using he₂ };
-      -- apply le_antisymm,
-      -- { cases he₁, apply α.to_preorder_hom.monotone,
-      --   rw [←not_lt, ←fin.le_cast_succ_iff, not_le],
-      --   exact he₁₂, },
-      -- { cases he₂, apply α.to_preorder_hom.monotone,
-      --   refine le_trans (by simp) (le_of_lt (fin.cast_succ_lt_succ _)) },
-      -- { cases he₂, apply α.to_preorder_hom.monotone,
-      --   refine le_trans (le_of_lt (fin.cast_succ_lt_succ _)) (by simp) },
-      -- { cases he₁, apply α.to_preorder_hom.monotone,
-      --   rw [fin.le_cast_succ_iff, fin.succ_pred],
-      --   exact he₁₂ }},
+      exact β_comp_σ H },
     { cases c' with c' hc',
       exact geom_real_rec_fac_j' θ (θ' ++ ⟦e⟧) α c' θ₂ _ }
   end
-
-lemma mem_left_iff_of_sorted : Π {θ₁ θ₂ : traversal n} {e} (e') (H : sorted (θ₁ ++ e :: θ₂)),
-  e' ∈ θ₁ ↔ e' ∈ θ₁ ++ e :: θ₂ ∧ e' < e
-| ⟦⟧ θ₂ e e' H :=
-begin
-  dsimp [sorted] at H, simp,
-  rw list.sorted_cons at H,
-  replace H := H.1 e',
-  intro h, cases h, cases h,
-  exact λ h', edge.lt_asymm e e h' h',
-  exact λ h', edge.lt_asymm e e' (H h) h',
-end
-| (e₁ :: θ₁) θ₂ e e' H :=
-begin
-  dsimp [sorted] at H,
-  rw list.sorted_cons at H,
-  rw [list.mem_cons_iff, list.cons_append, list.mem_cons_iff],
-  rw mem_left_iff_of_sorted e' H.2,
-  rw or_and_distrib_left,
-  suffices h : e' = e₁ ∨ e' < e ↔ e' < e, rw h, simp,
-  intro h, rw h,
-  exact H.1 e (by simp),
-end
 
 lemma geom_real_rec_fac_k' : Π (θ θ' : traversal n) {m} (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (k_rec_bundle θ θ').1.app (opposite.op m) (geom_real_rec_lift' θ θ' α θ₁ θ₂ hθ) = ((apply_map α θ') ++ θ₁, θ₂)
 | ⟦⟧       θ' m α θ₁ θ₂ hθ :=
   begin
-    simp [apply_map] at hθ,
-    cases hθ.1, cases hθ.2,
+    simp [apply_map] at hθ, cases hθ.1, cases hθ.2,
     simp[geom_real_rec_lift'], refl
   end
-| (e :: θ) θ' m α ⟦⟧ θ₂ hθ :=
-  begin
-    simp at hθ, cases hθ,
-    simp[k_rec_bundle],
-    change (geom_real_incl (e :: θ) ≫ k_rec' (e :: θ) θ').app (opposite.op m) α = _,
-    rw k_prop', refl,
-  end
-| (e :: θ) θ' m α (e₁ :: θ₁) θ₂ hθ :=
+| (e :: θ) θ' m α θ₁ θ₂ hθ :=
   begin
     simp [geom_real_rec_lift'],
     cases append_eq_append_split hθ with a' c',
-    { rcases a' with ⟨e₂, a', ha'⟩, simp,
-      cases e with i b, --simp,
-      let H := α_k_of_split ha'.1,
-      change (simplex_as_hom _).app (opposite.op m) (β α _) = _,
+    { rcases a' with ⟨θ₂', H, hθ₂⟩,
+      change (simplex_as_hom _).app (opposite.op m) (β H) = _,
       simp [simplex_as_hom],
       change apply_map _ _  = _ ∧ apply_map _ _  = _ ,
       rw [apply_map_append],
       simp [apply_map],
-      rw [←apply_comp, ←apply_comp, β_comp_σ α H.1 H.2],
-      cases ha'.2,
-      change _ ∧ _ = (e₂ :: a') ++ _,
+      rw [←apply_comp, ←apply_comp, β_comp_σ H],
+      cases hθ₂,
+      change _ ∧ _ = θ₂' ++ _,
       rw [list.append_left_inj],
       rw [list.append_right_inj],
-      have h₁ : sorted (e₁ :: θ₁ ++ e₂ :: a'), rw ←ha'.1, apply apply_map_to_edge_sorted,
+      have h₁ : sorted (θ₁ ++ θ₂'), rw ←H, apply apply_map_to_edge_sorted,
       have h₂ := h₁, rw ←append_sorted_iff at h₂,
       split;
       refine eq_of_sorted_of_same_elem _ _ (apply_map_to_edge_sorted _ _) (by simp[h₂.1, h₂.2]) _;
-      {
-        intro e,
-        rw [mem_left_iff_of_sorted e h₁, ←ha'.1],
-        suffices H' : _ ↔ e ∈ apply_map (β α _ ≫ σ i) ⟦(i, b)⟧ ∧ e < e₂,
-        { rw β_comp_σ α H.1 H.2 at H',
-          dsimp [apply_map] at H', rw list.append_nil at H',
-          exact H' },
-        rw apply_comp, simp only [apply_map, list.append_nil],
-        simp,
-        simp [σ, fin.pred_above, β],
-      }
-      -- have he₂ : (α.to_preorder_hom e₂.1, e₂.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁ : (α.to_preorder_hom e₁.1, e₁.2) = e,
-      -- { rw [←edge_in_apply_map_to_edge_iff, ha'.1], simp, },
-      -- have he₁₂ : e₁ < e₂,
-      -- { have H := apply_map_to_edge_sorted α e,
-      --   rw ha'.1 at H, dsimp[sorted] at H,
-      --   rw list.sorted_cons at H,
-      --   refine H.1 e₂ (list.mem_append_right _ (list.mem_cons_self e₂ a')) },
-      -- simp [k_rec_bundle];
-      -- cases e with i b, cases b;
-      -- simp at he₁; simp at he₂;
-      -- change (simplex_as_hom _).app (opposite.op m) (β α _) = _,
-      -- simp [simplex_as_hom],
-      -- -- change _ ⬝ (β α _) = _,
-      -- sorry
-
-    },
+      intro e'; rw edge_in_apply_map_to_edge_iff; simp; split; simp [β];
+      try {rw β_eq_es_iff H}; try {rw β_eq_et_iff H}; intro h,
+      { intro h', rw ←h' at h, simpa using h },
+      { have he' : e' ∈ apply_map_to_edge α e, rw H, exact list.mem_append_left θ₂' h,
+        rw edge_in_apply_map_to_edge_iff at he', cases e, cases e', simp at he' ⊢,
+        cases he'.2, simp, exact h },
+      { intro h', rw ←h' at h, simpa using h },
+      { have he' : e' ∈ apply_map_to_edge α e, rw H, exact list.mem_append_right θ₁ h,
+        rw edge_in_apply_map_to_edge_iff at he', cases e, cases e', simp at he' ⊢,
+        cases he'.2, simp, exact h }},
     { cases c' with c' hc', simp,
       dsimp [k_rec, k_rec_bundle],
       change (k_rec_bundle θ (θ' ++ ⟦e⟧)).1.app (opposite.op m) (geom_real_rec_lift' θ (θ' ++ ⟦e⟧) α c' θ₂ _) = _,
-      rw [hc'.1, ←list.append_assoc],
+      cases hc'.1,
       specialize geom_real_rec_fac_k' θ (θ' ++ ⟦e⟧) α c' θ₂ hc'.2.symm,
-      rw [geom_real_rec_fac_k', apply_map_append],
-      simp [list.append_assoc, apply_map] }
+      rw [geom_real_rec_fac_k', apply_map_append], simp [apply_map], refl, }
   end
 
 def geom_real_rec_lift (θ : traversal n) {m} : Π (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (geom_real_rec θ).obj (opposite.op m) := geom_real_rec_lift' θ ⟦⟧
 
-
 lemma geom_real_rec_fac_j (θ : traversal n) {m} : Π (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (j_rec θ).app (opposite.op m) (geom_real_rec_lift θ α θ₁ θ₂ hθ) = α := geom_real_rec_fac_j' θ ⟦⟧
-
 
 lemma geom_real_rec_fac_k (θ : traversal n) {m} : Π (α : m ⟶ [n]) (θ₁ θ₂ : traversal m.len) (hθ : θ₁ ++ θ₂ = apply_map α θ),
   (k_rec θ).app (opposite.op m) (geom_real_rec_lift θ α θ₁ θ₂ hθ) = (θ₁, θ₂) := geom_real_rec_fac_k' θ ⟦⟧
@@ -610,24 +392,9 @@ lemma geom_real_rec_unique : Π (θ : traversal n) {m} (α : m ⟶ [n]) (θ₁ �
   (j_rec θ).app (opposite.op m) x = α →
   (k_rec θ).app (opposite.op m) x = (θ₁, θ₂) →
   x = geom_real_rec_lift θ α θ₁ θ₂ hθ
-| ⟦⟧ m α θ₁ θ₂ hθ x hx₁ hx₂ :=
-  begin
-    dsimp [geom_real_rec_lift],
-    rw ←hx₁, refl,
-  end
-| (e :: θ) m α ⟦⟧ θ₂ hθ x hx₁ hx₂ :=
-  begin
-    dsimp [geom_real_rec_lift],
-    -- simp at hθ, cases hθ, clear hθ,
-    -- rw geom_real_incl_cons,
-    -- -- dsimp[geom_real_incl],
-    -- rw hx₁.symm at hx₂ ⊢,
-    sorry
-  end
-| (e :: θ) m α (e₁ :: θ₁) θ₂ hθ x hx₁ hx₂ :=
-  begin
-    sorry
-  end
+| ⟦⟧ m α θ₁ θ₂ hθ x hx₁ hx₂ := by dsimp [geom_real_rec_lift]; rw ←hx₁; refl
+| (e :: θ) m α ⟦⟧         θ₂ hθ x hx₁ hx₂ := sorry
+| (e :: θ) m α (e₁ :: θ₁) θ₂ hθ x hx₁ hx₂ := sorry
 
 theorem geom_real_is_pullback_θ_cod (θ : traversal n) : is_limit (pullback_cone_rec θ) :=
 begin

@@ -283,6 +283,7 @@ begin
   exact nat.find_min Hq hj ⟨j_property, hpj⟩,
 end
 
+/- An injective map is a face map. -/
 lemma face_of_injective {n m} (f : [n] ⟶ [m]) (hf : inj f) : face f :=
 begin
   induction m with m hm,
